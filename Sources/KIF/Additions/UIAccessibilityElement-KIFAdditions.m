@@ -32,9 +32,15 @@ MAKE_CATEGORIES_LOADABLE(UIAccessibilityElement_KIFAdditions)
     while (element && ![element isKindOfClass:[UIView class]]) {
         // Sometimes accessibilityContainer will return a view that's too far up the view hierarchy
         // UIAccessibilityElement instances will sometimes respond to view, so try to use that and then fall back to accessibilityContainer
-        id view = [element respondsToSelector:@selector(view)] ? [(id)element view]
-        : [element respondsToSelector:@selector(tableViewCell)] ? [(id)element tableViewCell]
-        : nil;
+        id view = nil;
+        
+        if([element respondsToSelector:@selector(view)]) {
+            view = [(id)element view];
+        } else if([element respondsToSelector:@selector(tableViewCell)]) {
+            view = [(id)element tableViewCell];
+        } else if([element isKindOfClass:NSClassFromString(@"UIAccessibilityElementMockView")]) {
+            view = [element valueForKey:@"view"];
+        }
         
         if (view) {
             element = view;
@@ -213,6 +219,15 @@ MAKE_CATEGORIES_LOADABLE(UIAccessibilityElement_KIFAdditions)
                 // Give the scroll view a small amount of time to perform the scroll.
                 CFTimeInterval delay = animationEnabled ? 0.3 : 0.05;
                 KIFRunLoopRunInModeRelativeToAnimationSpeed(kCFRunLoopDefaultMode, delay, false);
+
+                // Because of cell reuse the first found view could be different after we scroll.
+                // Find the same element's view to ensure that after we have scrolled we get the same view back.
+                UIView *checkedView = [UIAccessibilityElement viewContainingAccessibilityElement:element];
+                // intentionally doing a memory address check vs a isEqual check because
+                // we want to ensure that the memory address hasn't changed after scroll.
+                if(view != checkedView) {
+                    view = checkedView;
+                }
             }
         }
         
